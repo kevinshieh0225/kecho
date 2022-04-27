@@ -172,8 +172,8 @@ int main(void)
         if ((epoll_events_count = epoll_wait(epoll_fd, events, EPOLL_SIZE,
                                              EPOLL_RUN_TIMEOUT)) < 0)
             server_err("Fail to wait epoll", &list);
-        printf("epoll event count: %d\n", epoll_events_count);
-        clock_t start_time = clock();
+        // printf("epoll event count: %d\n", epoll_events_count);
+        // clock_t start_time = clock();
         for (int i = 0; i < epoll_events_count; i++) {
             /* EPOLLIN event for listener (new client connection) */
             if (events[i].data.fd == listener) {
@@ -181,19 +181,19 @@ int main(void)
                 while (
                     (client = accept(listener, (struct sockaddr *) &client_addr,
                                      &socklen)) > 0) {
-                    printf("Connection from %s:%d, socket assigned: %d\n",
-                           inet_ntoa(client_addr.sin_addr),
-                           ntohs(client_addr.sin_port), client);
+                    // printf("Connection from %s:%d, socket assigned: %d\n",
+                    //        inet_ntoa(client_addr.sin_addr),
+                    //        ntohs(client_addr.sin_port), client);
                     setnonblock(client);
                     ev.data.fd = client;
                     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client, &ev) < 0)
                         server_err("Fail to control epoll", &list);
                     push_back_client(&list, client,
                                      inet_ntoa(client_addr.sin_addr));
-                    printf(
-                        "Add new client (fd=%d) and size of client_list is "
-                        "%d\n",
-                        client, size_list(list));
+                    // printf(
+                    //     "Add new client (fd=%d) and size of client_list is "
+                    //     "%d\n",
+                    //     client, size_list(list));
                 }
                 if (errno != EWOULDBLOCK)
                     server_err("Fail to accept", &list);
@@ -204,9 +204,9 @@ int main(void)
                     server_err("Handle message from client", &list);
             }
         }
-        printf("Statistics: %d event(s) handled at: %.6f second(s)\n",
-               epoll_events_count,
-               (double) (clock() - start_time) / CLOCKS_PER_SEC);
+        // printf("Statistics: %d event(s) handled at: %.6f second(s)\n",
+        //        epoll_events_count,
+        //        (double) (clock() - start_time) / CLOCKS_PER_SEC);
     }
     close(listener);
     close(epoll_fd);

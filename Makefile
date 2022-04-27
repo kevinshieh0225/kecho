@@ -1,9 +1,9 @@
 KDIR = /lib/modules/$(shell uname -r)/build
-
+TARGET_MODULE = kecho
 CFLAGS_user = -std=gnu99 -Wall -Wextra -Werror
 
-obj-m += kecho.o
-kecho-objs := \
+obj-m += $(TARGET_MODULE).o
+$(TARGET_MODULE)-objs := \
     kecho_mod.o \
     echo_server.o
 
@@ -32,3 +32,10 @@ user-echo-server: user-echo-server.c
 clean:
 	make -C $(KDIR) M=$(PWD) clean
 	$(RM) user-echo-server bench bench.txt
+
+load:
+	sudo insmod $(TARGET_MODULE).ko
+
+unload:
+	sudo rmmod $(TARGET_MODULE) || true > /dev/null
+
