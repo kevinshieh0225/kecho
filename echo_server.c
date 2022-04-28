@@ -10,7 +10,7 @@
 
 struct echo_service daemon = {.is_stopped = false};
 extern struct workqueue_struct *kecho_wq;
-
+extern bool bench;
 static int get_request(struct socket *sock, unsigned char *buf, size_t size)
 {
     struct msghdr msg;
@@ -32,10 +32,10 @@ static int get_request(struct socket *sock, unsigned char *buf, size_t size)
      * TODO: during benchmarking, such printk() is useless and lead to worse
      * result. Add a specific build flag for these printk() would be good.
      */
-    printk(MODULE_NAME ": start get response\n");
+    // printk(MODULE_NAME ": start get response\n");
     /* get msg */
     length = kernel_recvmsg(sock, &msg, &vec, size, size, msg.msg_flags);
-    printk(MODULE_NAME ": get request = %s\n", buf);
+    // printk(MODULE_NAME ": get request = %s\n", buf);
 
     return length;
 }
@@ -55,11 +55,11 @@ static int send_request(struct socket *sock, unsigned char *buf, size_t size)
     vec.iov_base = buf;
     vec.iov_len = strlen(buf);
 
-    printk(MODULE_NAME ": start send request.\n");
+    // printk(MODULE_NAME ": start send request.\n");
 
     length = kernel_sendmsg(sock, &msg, &vec, 1, size);
 
-    printk(MODULE_NAME ": send request = %s\n", buf);
+    // printk(MODULE_NAME ": send request = %s\n", buf);
 
     return length;
 }
@@ -157,6 +157,10 @@ int echo_server_daemon(void *arg)
         }
 
         /* start server worker */
+        // if (bench)
+        //     queue_work_on(7, kecho_wq, work);
+        // else
+        //     queue_work(kecho_wq, work);
         queue_work(kecho_wq, work);
     }
 

@@ -45,13 +45,13 @@ static client_list_t *delete_client(client_list_t **list, int client)
     return *list;
 }
 
-static int size_list(client_list_t *list)
-{
-    int size = 0;
-    for (client_list_t *tmp = list; tmp; tmp = tmp->next)
-        size++;
-    return size;
-}
+// static int size_list(client_list_t *list)
+// {
+//     int size = 0;
+//     for (client_list_t *tmp = list; tmp; tmp = tmp->next)
+//         size++;
+//     return size;
+// }
 
 static void server_err(const char *str, client_list_t **list)
 {
@@ -107,10 +107,11 @@ static int handle_message_from_client(int client, client_list_t **list)
         if (close(client) < 0)
             server_err("Fail to close", list);
         *list = delete_client(list, client);
-        printf("After fd=%d is closed, current numbers clients = %d\n", client,
-               size_list(*list));
+        // printf("After fd=%d is closed, current numbers clients = %d\n",
+        // client,
+        //        size_list(*list));
     } else {
-        printf("Client #%d :> %s", client, buf);
+        // printf("Client #%d :> %s\n", client, buf);
         if (send(client, buf, BUF_SIZE, 0) < 0)
             server_err("Fail to send", list);
     }

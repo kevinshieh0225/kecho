@@ -11,13 +11,23 @@
 #include <time.h>
 #include <unistd.h>
 
+#define barrier() __asm__ __volatile__("" : : : "memory")
+
 #define TARGET_HOST "127.0.0.1"
 #define TARGET_PORT 12345
-#define BENCH_COUNT 10
+#define BENCH_COUNT 50
 #define BENCHMARK_RESULT_FILE "bench.txt"
 
 /* length of unique message (TODO below) should shorter than this */
 #define MAX_MSG_LEN 32
+#define MIN_MSG_LEN 16
+#if MAX_MSG_LEN == MIN_MSG_LEN
+#define MASK(num) ((MAX_MSG_LEN - 1))
+#elif MIN_MSG_LEN == 0
+#define MASK(num) ((num & (MAX_MSG_LEN - 1)))
+#else
+#define MASK(num) ((num % (MAX_MSG_LEN - MIN_MSG_LEN) + MIN_MSG_LEN))
+#endif
 
 /*
  * Too much concurrent connection would be treated as sort of DDoS attack
@@ -54,7 +64,6 @@
  * each worker could produce benchmarking result which is more conforms to
  * realworld usage.
  */
-static const char *msg_dum = "dummy message";
 
 static pthread_t pt[MAX_THREAD];
 
@@ -75,10 +84,11 @@ static inline long time_diff_us(struct timeval *start, struct timeval *end)
            (end->tv_usec - start->tv_usec);
 }
 
-static void *bench_worker(__attribute__((unused)))
+static void *bench_worker(void *str)
 {
     int sock_fd;
-    char dummy[MAX_MSG_LEN];
+    char *reqstr = str;
+    char recstr[MAX_MSG_LEN];
     struct timeval start, end;
 
     /* wait until all workers created */
@@ -108,14 +118,15 @@ static void *bench_worker(__attribute__((unused)))
     }
 
     gettimeofday(&start, NULL);
-    send(sock_fd, msg_dum, strlen(msg_dum), 0);
-    recv(sock_fd, dummy, MAX_MSG_LEN, 0);
+    send(sock_fd, reqstr, strlen(reqstr), 0);
+    recv(sock_fd, recstr, MAX_MSG_LEN, 0);
     gettimeofday(&end, NULL);
+
 
     shutdown(sock_fd, SHUT_RDWR);
     close(sock_fd);
 
-    if (strncmp(msg_dum, dummy, strlen(msg_dum))) {
+    if (strncmp(reqstr, recstr, strlen(reqstr))) {
         puts("echo message validation failed");
         exit(-1);
     }
@@ -123,14 +134,29 @@ static void *bench_worker(__attribute__((unused)))
     pthread_mutex_lock(&res_lock);
     time_res[idx++] += time_diff_us(&start, &end);
     pthread_mutex_unlock(&res_lock);
+    free(reqstr);
 
     pthread_exit(NULL);
 }
 
+static char *rand_string()
+{
+    int r = MASK(rand());
+    char *str = malloc(r + 1);
+    str[r] = '\0';
+    for (int i = 0; i < r; i++) {
+        char c = 97 + rand() % 26;
+        str[i] = c;
+    }
+    return str;
+}
+
 static void create_worker(int thread_qty)
 {
+    srand(time(NULL));
     for (int i = 0; i < thread_qty; i++) {
-        if (pthread_create(&pt[i], NULL, bench_worker, NULL)) {
+        char *str = rand_string();
+        if (pthread_create(&pt[i], NULL, bench_worker, str)) {
             puts("thread creation failed");
             exit(-1);
         }
@@ -141,16 +167,13 @@ static void bench(void)
 {
     for (int i = 0; i < BENCH_COUNT; i++) {
         ready = false;
-
         create_worker(MAX_THREAD);
-
+        barrier();
         pthread_mutex_lock(&worker_lock);
-
         ready = true;
 
         /* all workers are ready, let's start bombing kecho */
         pthread_cond_broadcast(&worker_wait);
-
         pthread_mutex_unlock(&worker_lock);
 
         /* waiting for all workers to finish the measurement */

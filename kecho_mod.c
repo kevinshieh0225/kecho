@@ -27,7 +27,7 @@ MODULE_VERSION("0.1");
 
 static ushort port = DEFAULT_PORT;
 static ushort backlog = DEFAULT_BACKLOG;
-static bool bench = false;
+bool bench = false;
 module_param(port, ushort, S_IRUGO);
 module_param(backlog, ushort, S_IRUGO);
 module_param(bench, bool, S_IRUGO);
@@ -67,6 +67,8 @@ static int kecho_init_module(void)
      * module parameter "bench=1" to interact with the module.
      * Since without `WQ_UNBOUND` flag specified, a
      * long-running task may delay other tasks in the kernel.
+     *
+     * Try setting of WQ_HIGHPRI|WQ_CPU_INTENSIVE around.
      */
     kecho_wq = alloc_workqueue(MODULE_NAME, bench ? 0 : WQ_UNBOUND, 0);
     echo_server = kthread_run(echo_server_daemon, &param, MODULE_NAME);

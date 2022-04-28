@@ -1,9 +1,9 @@
 reset
 set xlabel 'thread no.'
 set ylabel 'time (us)'
-set title 'kecho HIGHPRI|INTENSIVE performance'
+set title 'kecho UNBOUND performance'
 set term png enhanced font 'Verdana,10'
-set output 'kecho HIGHPRI|INTENSIVE bench.png'
+set output 'kecho UNBOUND bench.png'
 set key left
 
 plot [0:][0:] \
