@@ -11,7 +11,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#define barrier() __asm__ __volatile__("" : : : "memory")
+// #define barrier() __asm__ __volatile__("" : : : "memory")
 
 #define TARGET_HOST "127.0.0.1"
 #define TARGET_PORT 12345
@@ -168,7 +168,7 @@ static void bench(void)
     for (int i = 0; i < BENCH_COUNT; i++) {
         ready = false;
         create_worker(MAX_THREAD);
-        barrier();
+        // barrier();
         pthread_mutex_lock(&worker_lock);
         ready = true;
 

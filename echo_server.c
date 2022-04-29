@@ -8,6 +8,7 @@
 
 #define BUF_SIZE 4096
 
+struct runtime_statistics stats = {ATOMIC_INIT(0)};
 struct echo_service daemon = {.is_stopped = false};
 extern struct workqueue_struct *kecho_wq;
 extern bool bench;
@@ -28,14 +29,9 @@ static int get_request(struct socket *sock, unsigned char *buf, size_t size)
     msg.msg_controllen = 0;
     msg.msg_flags = 0;
 
-    /*
-     * TODO: during benchmarking, such printk() is useless and lead to worse
-     * result. Add a specific build flag for these printk() would be good.
-     */
-    // printk(MODULE_NAME ": start get response\n");
-    /* get msg */
+    // get request
     length = kernel_recvmsg(sock, &msg, &vec, size, size, msg.msg_flags);
-    // printk(MODULE_NAME ": get request = %s\n", buf);
+    TRACE(recv_msg);
 
     return length;
 }
@@ -55,11 +51,9 @@ static int send_request(struct socket *sock, unsigned char *buf, size_t size)
     vec.iov_base = buf;
     vec.iov_len = strlen(buf);
 
-    // printk(MODULE_NAME ": start send request.\n");
-
+    // send request
     length = kernel_sendmsg(sock, &msg, &vec, 1, size);
-
-    // printk(MODULE_NAME ": send request = %s\n", buf);
+    TRACE(send_msg);
 
     return length;
 }
@@ -71,7 +65,8 @@ static void echo_server_worker(struct work_struct *work)
 
     buf = kzalloc(BUF_SIZE, GFP_KERNEL);
     if (!buf) {
-        printk(KERN_ERR MODULE_NAME ": kmalloc error....\n");
+        // kmalloc error
+        TRACE(kmal_err);
         return;
     }
 
@@ -79,20 +74,20 @@ static void echo_server_worker(struct work_struct *work)
         int res = get_request(worker->sock, buf, BUF_SIZE - 1);
         if (res <= 0) {
             if (res) {
-                printk(KERN_ERR MODULE_NAME ": get request error = %d\n", res);
+                // get request error
+                TRACE(recv_err);
             }
             break;
         }
 
         res = send_request(worker->sock, buf, res);
         if (res < 0) {
-            printk(KERN_ERR MODULE_NAME ": send request error = %d\n", res);
+            // send request error
+            TRACE(send_err);
             break;
         }
-
         memset(buf, 0, res);
     }
-
     kernel_sock_shutdown(worker->sock, SHUT_RDWR);
     kfree(buf);
 }
@@ -100,16 +95,11 @@ static void echo_server_worker(struct work_struct *work)
 static struct work_struct *create_work(struct socket *sk)
 {
     struct kecho *work;
-
     if (!(work = kmalloc(sizeof(struct kecho), GFP_KERNEL)))
         return NULL;
-
     work->sock = sk;
-
     INIT_WORK(&work->kecho_work, echo_server_worker);
-
     list_add(&work->list, &daemon.worker);
-
     return &work->kecho_work;
 }
 
@@ -125,6 +115,18 @@ static void free_work(void)
         sock_release(tar->sock);
         kfree(tar);
     }
+}
+
+void do_analysis(void)
+{
+    smp_mb();
+    TRACE_PRINT(KERN_ERR, send_msg);
+    TRACE_PRINT(KERN_ERR, recv_msg);
+    TRACE_PRINT(KERN_ERR, recv_err);
+    TRACE_PRINT(KERN_ERR, send_err);
+    TRACE_PRINT(KERN_ERR, kmal_err);
+    TRACE_PRINT(KERN_ERR, work_err);
+    TRACE_PRINT(KERN_ERR, acpt_err);
 }
 
 int echo_server_daemon(void *arg)
@@ -144,28 +146,24 @@ int echo_server_daemon(void *arg)
         if (error < 0) {
             if (signal_pending(current))
                 break;
-            printk(KERN_ERR MODULE_NAME ": socket accept error = %d\n", error);
+            // socket accept error
+            TRACE(acpt_err);
             continue;
         }
 
         if (unlikely(!(work = create_work(sock)))) {
             printk(KERN_ERR MODULE_NAME
                    ": create work error, connection closed\n");
+            TRACE(work_err);
             kernel_sock_shutdown(sock, SHUT_RDWR);
             sock_release(sock);
             continue;
         }
-
-        /* start server worker */
-        // if (bench)
-        //     queue_work_on(7, kecho_wq, work);
-        // else
-        //     queue_work(kecho_wq, work);
         queue_work(kecho_wq, work);
     }
 
     printk(MODULE_NAME ": daemon shutdown in progress...\n");
-
+    do_analysis();
     daemon.is_stopped = true;
     free_work();
 
