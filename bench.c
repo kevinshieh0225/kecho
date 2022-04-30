@@ -19,12 +19,16 @@
 #define BENCHMARK_RESULT_FILE "bench.txt"
 
 /* length of unique message (TODO below) should shorter than this */
-#define MAX_MSG_LEN 32
-#define MIN_MSG_LEN 16
+#define MAX_MSG_LEN 4090
+#define MIN_MSG_LEN 4090
 #if MAX_MSG_LEN == MIN_MSG_LEN
 #define MASK(num) ((MAX_MSG_LEN - 1))
 #elif MIN_MSG_LEN == 0
+#if (MAX_MSG_LEN & (MAX_MSG_LEN - 1)) == 0
 #define MASK(num) ((num & (MAX_MSG_LEN - 1)))
+#else
+#define MASK(num) (num % MAX_MSG_LEN)
+#endif
 #else
 #define MASK(num) ((num % (MAX_MSG_LEN - MIN_MSG_LEN) + MIN_MSG_LEN))
 #endif
@@ -117,16 +121,19 @@ static void *bench_worker(void *str)
         exit(-1);
     }
 
+    int recvlen = 0, msglen, reqlen = strlen(reqstr);
     gettimeofday(&start, NULL);
-    send(sock_fd, reqstr, strlen(reqstr), 0);
-    recv(sock_fd, recstr, MAX_MSG_LEN, 0);
+    send(sock_fd, reqstr, reqlen, 0);
+    while ((msglen = recv(sock_fd, recstr + recvlen, MAX_MSG_LEN, 0)) &&
+           (recvlen += msglen) < reqlen)
+        ;
     gettimeofday(&end, NULL);
 
 
     shutdown(sock_fd, SHUT_RDWR);
     close(sock_fd);
 
-    if (strncmp(reqstr, recstr, strlen(reqstr))) {
+    if (strncmp(reqstr, recstr, reqlen)) {
         puts("echo message validation failed");
         exit(-1);
     }
@@ -142,8 +149,7 @@ static void *bench_worker(void *str)
 static char *rand_string()
 {
     int r = MASK(rand());
-    char *str = malloc(r + 1);
-    str[r] = '\0';
+    char *str = calloc(r + 1, 1);
     for (int i = 0; i < r; i++) {
         char c = 97 + rand() % 26;
         str[i] = c;

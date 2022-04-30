@@ -27,7 +27,7 @@ bench: bench.c
 plot:
 	gnuplot scripts/bench.gp
 
-user-echo-server: user-echo-server.c
+user-echo-server: user-echo-server.c user-echo-server.h
 	$(CC) -o $@ $(CFLAGS_user) $<
 
 clean:

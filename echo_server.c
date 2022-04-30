@@ -6,12 +6,13 @@
 
 #include "echo_server.h"
 
-#define BUF_SIZE 4096
+#define BUF_SIZE 1024
 
 struct runtime_statistics stats = {ATOMIC_INIT(0)};
 struct echo_service daemon = {.is_stopped = false};
 extern struct workqueue_struct *kecho_wq;
 extern bool bench;
+
 static int get_request(struct socket *sock, unsigned char *buf, size_t size)
 {
     struct msghdr msg;
@@ -29,9 +30,9 @@ static int get_request(struct socket *sock, unsigned char *buf, size_t size)
     msg.msg_controllen = 0;
     msg.msg_flags = 0;
 
-    // get request
     length = kernel_recvmsg(sock, &msg, &vec, size, size, msg.msg_flags);
-    TRACE(recv_msg);
+    if (length)
+        TRACE(recv_msg);
 
     return length;
 }
@@ -51,7 +52,6 @@ static int send_request(struct socket *sock, unsigned char *buf, size_t size)
     vec.iov_base = buf;
     vec.iov_len = strlen(buf);
 
-    // send request
     length = kernel_sendmsg(sock, &msg, &vec, 1, size);
     TRACE(send_msg);
 
@@ -65,7 +65,6 @@ static void echo_server_worker(struct work_struct *work)
 
     buf = kzalloc(BUF_SIZE, GFP_KERNEL);
     if (!buf) {
-        // kmalloc error
         TRACE(kmal_err);
         return;
     }
@@ -73,16 +72,13 @@ static void echo_server_worker(struct work_struct *work)
     while (!daemon.is_stopped) {
         int res = get_request(worker->sock, buf, BUF_SIZE - 1);
         if (res <= 0) {
-            if (res) {
-                // get request error
+            if (res)
                 TRACE(recv_err);
-            }
             break;
         }
 
         res = send_request(worker->sock, buf, res);
         if (res < 0) {
-            // send request error
             TRACE(send_err);
             break;
         }
@@ -90,6 +86,7 @@ static void echo_server_worker(struct work_struct *work)
     }
     kernel_sock_shutdown(worker->sock, SHUT_RDWR);
     kfree(buf);
+    TRACE(shdn_msg);
 }
 
 static struct work_struct *create_work(struct socket *sk)
@@ -120,8 +117,9 @@ static void free_work(void)
 void do_analysis(void)
 {
     smp_mb();
-    TRACE_PRINT(KERN_ERR, send_msg);
     TRACE_PRINT(KERN_ERR, recv_msg);
+    TRACE_PRINT(KERN_ERR, send_msg);
+    TRACE_PRINT(KERN_ERR, shdn_msg);
     TRACE_PRINT(KERN_ERR, recv_err);
     TRACE_PRINT(KERN_ERR, send_err);
     TRACE_PRINT(KERN_ERR, kmal_err);

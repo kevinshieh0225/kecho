@@ -86,7 +86,7 @@ static void kecho_cleanup_module(void)
     kthread_stop(echo_server);
     close_listen(listen_sock);
     destroy_workqueue(kecho_wq);
-    printk(MODULE_NAME ": module successfully removed \n");
+    printk(MODULE_NAME ": module successfully removed \n\n");
 }
 
 static int open_listen(struct socket **result)

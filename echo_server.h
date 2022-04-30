@@ -24,7 +24,7 @@ struct kecho {
 
 extern int echo_server_daemon(void *);
 
-#endif
+#endif /* ECHO_SERVER_H */
 
 #ifndef RUNTIME_STAT
 #define RUNTIME_STAT
@@ -33,6 +33,7 @@ enum {
     TRACE_nop = 0,
     TRACE_send_msg,
     TRACE_recv_msg,
+    TRACE_shdn_msg,
     TRACE_kmal_err,
     TRACE_recv_err,
     TRACE_send_err,
@@ -41,7 +42,7 @@ enum {
 };
 
 struct runtime_statistics {
-    atomic_t send_msg, recv_msg;
+    atomic_t send_msg, recv_msg, shdn_msg;
     atomic_t kmal_err, recv_err, send_err;
     atomic_t work_err, acpt_err;
 };
