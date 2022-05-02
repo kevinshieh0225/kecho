@@ -23,18 +23,20 @@ check: all
 
 bench: bench.c
 	$(CC) -o $@ $(CFLAGS_user) -pthread $<
-
 plot:
 	gnuplot scripts/bench.gp
 
 user-echo-server: user-echo-server.c user-echo-server.h
 	$(CC) -o $@ $(CFLAGS_user) $<
 
+tsrs: thread-safe-random-string.c
+	$(CC) -o $@.o $(CFLAGS_user) -pthread $<
+
 clean:
 	make -C $(KDIR) M=$(PWD) clean
 	$(RM) user-echo-server bench bench.txt
 
-load:
+load: all
 	sudo insmod $(TARGET_MODULE).ko
 
 load-bench:

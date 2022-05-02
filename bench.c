@@ -19,8 +19,8 @@
 #define BENCHMARK_RESULT_FILE "bench.txt"
 
 /* length of unique message (TODO below) should shorter than this */
-#define MAX_MSG_LEN 4090
-#define MIN_MSG_LEN 4090
+#define MAX_MSG_LEN 32
+#define MIN_MSG_LEN 16
 #if MAX_MSG_LEN == MIN_MSG_LEN
 #define MASK(num) ((MAX_MSG_LEN - 1))
 #elif MIN_MSG_LEN == 0
@@ -72,7 +72,7 @@
 static pthread_t pt[MAX_THREAD];
 
 /* block all workers before they are all ready to benchmarking kecho */
-static bool ready;
+static int ready;
 
 static pthread_mutex_t res_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t worker_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -97,12 +97,17 @@ static void *bench_worker(void *str)
 
     /* wait until all workers created */
     pthread_mutex_lock(&worker_lock);
-    while (!ready)
-        if (pthread_cond_wait(&worker_wait, &worker_lock)) {
-            puts("pthread_cond_wait failed");
-            exit(-1);
-        }
+    ready += 1;
+    if (ready == MAX_THREAD)
+        pthread_cond_broadcast(&worker_wait);
+    else
+        while (ready < MAX_THREAD)
+            if (pthread_cond_wait(&worker_wait, &worker_lock)) {
+                puts("pthread_cond_wait failed");
+                exit(-1);
+            }
     pthread_mutex_unlock(&worker_lock);
+    /* all workers are ready, let's start bombing kecho */
 
     sock_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (sock_fd == -1) {
@@ -172,20 +177,11 @@ static void create_worker(int thread_qty)
 static void bench(void)
 {
     for (int i = 0; i < BENCH_COUNT; i++) {
-        ready = false;
+        ready = 0;
         create_worker(MAX_THREAD);
-        // barrier();
-        pthread_mutex_lock(&worker_lock);
-        ready = true;
 
-        /* all workers are ready, let's start bombing kecho */
-        pthread_cond_broadcast(&worker_wait);
-        pthread_mutex_unlock(&worker_lock);
-
-        /* waiting for all workers to finish the measurement */
         for (int x = 0; x < MAX_THREAD; x++)
             pthread_join(pt[x], NULL);
-
         idx = 0;
     }
 

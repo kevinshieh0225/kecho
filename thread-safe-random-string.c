@@ -9,7 +9,8 @@
 #include <unistd.h>
 
 // #define barrier() __asm__ __volatile__("" : : : "memory")
-#define MAX_THREAD 10000
+#define MAX_THREAD 1000
+#define BENCH_COUNT 500
 
 #define MAX_MSG_LEN 32
 #define MIN_MSG_LEN 16
@@ -23,38 +24,30 @@
 
 bool ready;
 
-struct arg_struct {
-    int idx;
-    char *str;
-};
-
-static pthread_mutex_t res_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t worker_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t worker_wait = PTHREAD_COND_INITIALIZER;
-static int record[MAX_THREAD] = {0};
+static int idx = 0;
 pthread_t pt[MAX_THREAD];
+int record[BENCH_COUNT];
 
-static char *rand_string()
+// static char *rand_string()
+// {
+//     int r = MASK(rand());
+//     char *str = malloc(r + 1);
+//     str[r] = '\0';
+//     for (int i = 0; i < r; i++) {
+//         char c = 97 + rand() % 26;
+//         str[i] = c;
+//     }
+//     return str;
+// }
+
+static void *bench_worker(__attribute__((unused)))
 {
-    int r = MASK(rand());
-    char *str = malloc(r + 1);
-    str[r] = '\0';
-    for (int i = 0; i < r; i++) {
-        char c = 97 + rand() % 26;
-        str[i] = c;
-    }
-    return str;
-}
-
-static void *bench_worker(void *arguments)
-{
-    struct arg_struct *args = (struct arg_struct *) arguments;
-
-
     /* wait until all workers created */
     pthread_mutex_lock(&worker_lock);
     while (!ready) {
-        record[args->idx] = 1;
+        idx += 1;
         if (pthread_cond_wait(&worker_wait, &worker_lock)) {
             puts("pthread_cond_wait failed");
             exit(-1);
@@ -62,21 +55,17 @@ static void *bench_worker(void *arguments)
     }
     pthread_mutex_unlock(&worker_lock);
 
-    printf("%s\n", args->str);
-    free(args->str);
-    free(args);
+    // printf("%s\n", str);
+    // free(str);
     pthread_exit(NULL);
 }
 
 static void create_worker(int thread_qty)
 {
-    srand(time(NULL));
+    // srand(time(NULL));
     for (int i = 0; i < thread_qty; i++) {
-        char *str = rand_string();
-        struct arg_struct *args = malloc(sizeof(struct arg_struct));
-        args->idx = i;
-        args->str = str;
-        if (pthread_create(&pt[i], NULL, bench_worker, (void *) args)) {
+        // char *str = rand_string();
+        if (pthread_create(&pt[i], NULL, bench_worker, NULL)) {
             puts("thread creation failed");
             exit(-1);
         }
@@ -85,20 +74,24 @@ static void create_worker(int thread_qty)
 
 int main()
 {
-    ready = false;
-    create_worker(MAX_THREAD);
-    // barrier();
-    pthread_mutex_lock(&worker_lock);
-    ready = true;
+    for (int i = 0; i < BENCH_COUNT; ++i) {
+        ready = false;
+        create_worker(MAX_THREAD);
+        pthread_mutex_lock(&worker_lock);
+        ready = true;
 
-    /* all workers are ready, let's start bombing kecho */
-    pthread_cond_broadcast(&worker_wait);
-    pthread_mutex_unlock(&worker_lock);
+        /* all workers are ready, let's start bombing kecho */
+        pthread_cond_broadcast(&worker_wait);
+        pthread_mutex_unlock(&worker_lock);
 
-    /* waiting for all workers to finish the measurement */
-    for (int x = 0; x < MAX_THREAD; x++)
-        pthread_join(pt[x], NULL);
-    for (int x = 0; x < MAX_THREAD; x++)
-        printf("%d ", record[x]);
+        /* waiting for all workers to finish the measurement */
+        for (int x = 0; x < MAX_THREAD; x++)
+            pthread_join(pt[x], NULL);
+        record[i] = idx;
+        idx = 0;
+    }
+    for (int i = 0; i < BENCH_COUNT; ++i)
+        printf("%d ", record[i]);
+    printf("\n");
     return 0;
 }
